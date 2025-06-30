@@ -39,7 +39,8 @@ def snapshot_experiment_meta_data(logdir, experiment_id, exper_meta_data):
     with open(meta_file, 'wb') as f:
         for key in exper_meta_data:
             print('{}: {}'.format(key, exper_meta_data[key]))
-            f.write('{}:{} \n'.format(key, exper_meta_data[key]))
+            formatting = '{}:{} \n'.format(key, exper_meta_data[key])
+            f.write(bytes(formatting, 'utf8'))
 
     print('Experimental meta-data has been snapshotted to %s!'%(meta_file))
 

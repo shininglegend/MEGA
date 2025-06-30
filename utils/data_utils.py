@@ -7,7 +7,7 @@ import sys
 from copy import deepcopy
 
 import tensorflow as tf
-from tensorflow.examples.tutorials.mnist import input_data
+# Removed deprecated tensorflow.examples - using keras.datasets instead
 
 from six.moves.urllib.request import urlretrieve
 from six.moves import cPickle as pickle
@@ -18,6 +18,51 @@ import cv2
 
 #IMG_MEAN = np.array((104.00698793,116.66876762,122.67891434), dtype=np.float32)
 IMG_MEAN = np.array((103.94,116.78,123.68), dtype=np.float32)
+
+############################################################
+### MNIST compatibility layer ##############################
+############################################################
+
+class MNISTDataset:
+    """Compatibility layer for old tensorflow.examples.tutorials.mnist.input_data"""
+    def __init__(self, images, labels):
+        self._images = images
+        self.labels = labels
+
+    @property
+    def images(self):
+        return self._images
+
+class MNISTData:
+    """Container for MNIST train/validation/test splits"""
+    def __init__(self):
+        # Load MNIST data using keras
+        (x_train, y_train), (x_test, y_test) = tf.keras.datasets.mnist.load_data()
+
+        # Normalize and flatten images
+        x_train = x_train.astype('float32') / 255.0
+        x_test = x_test.astype('float32') / 255.0
+        x_train = x_train.reshape(x_train.shape[0], -1)
+        x_test = x_test.reshape(x_test.shape[0], -1)
+
+        # Convert labels to one-hot
+        y_train = tf.keras.utils.to_categorical(y_train, 10)
+        y_test = tf.keras.utils.to_categorical(y_test, 10)
+
+        # Split training data into train/validation (55000/5000 split like original)
+        x_val = x_train[:5000]
+        y_val = y_train[:5000]
+        x_train = x_train[5000:]
+        y_train = y_train[5000:]
+
+        self.train = MNISTDataset(x_train, y_train)
+        self.validation = MNISTDataset(x_val, y_val)
+        self.test = MNISTDataset(x_test, y_test)
+
+def read_data_sets(data_dir, one_hot=True):
+    """Compatibility function for old read_data_sets"""
+    return MNISTData()
+
 ############################################################
 ### Data augmentation utils ################################
 ############################################################
@@ -98,7 +143,7 @@ def _AWA_read_img_from_file(data_dir, file_name, img_height, img_width):
             count += 1
 
             if count % 1000 == 0:
-                print 'Finish reading {:07d}'.format(count)
+                print('Finish reading {:07d}').format(count)
 
     # Convert the labels to one-hot
     y = dense_to_one_hot(np.array(labels))
@@ -213,7 +258,7 @@ def construct_split_awa(task_labels, data_dir, train_list_file, val_list_file, t
         datasets.append(awa)
 
     if attr_file:
-        return datasets, awa_attr 
+        return datasets, awa_attr
     else:
         return datasets
 
@@ -253,7 +298,7 @@ def _CUB_read_img_from_file(data_dir, file_name, img_height, img_width):
             count += 1
 
             if count % 1000 == 0:
-                print 'Finish reading {:07d}'.format(count)
+                print('Finish reading {:07d}').format(count)
 
     # Convert the labels to one-hot
     y = dense_to_one_hot(np.array(labels))
@@ -354,7 +399,7 @@ def construct_split_cub(task_labels, data_dir, train_list_file, test_list_file, 
         datasets.append(cub)
 
     if attr_file:
-        return datasets, cub_attr 
+        return datasets, cub_attr
     else:
         return datasets
 
@@ -424,7 +469,7 @@ def construct_split_cifar(task_labels, is_cifar_100=True):
 
         cifar = {
             'train': train,
-            'validation': validation, 
+            'validation': validation,
             'test': test,
         }
 
@@ -470,7 +515,7 @@ def _get_cifar(data_dir, is_cifar_100):
         f = open(data_dir + CIFAR_100_DIR + '/train', 'rb')
         datadict = pickle.load(f)
         f.close()
-    
+
         _X = datadict['data']
         _Y = np.array(datadict['fine_labels'])
         _Y = dense_to_one_hot(_Y, num_classes=100)
@@ -478,7 +523,7 @@ def _get_cifar(data_dir, is_cifar_100):
         _X = np.array(_X, dtype=float) / 255.0
         _X = _X.reshape([-1, 3, 32, 32])
         _X = _X.transpose([0, 2, 3, 1])
-    
+
         # Compute the data mean for normalization
         x_train_mean = np.mean(_X, axis=0)
 
@@ -488,27 +533,27 @@ def _get_cifar(data_dir, is_cifar_100):
         x_validation = _X[40000:]
         y_validation = _Y[40000:]
     else:
-    	# Load all the training batches of the CIFAR-10
-    	for i in range(5):
+        # Load all the training batches of the CIFAR-10
+        for i in range(5):
             f = open(data_dir + CIFAR_10_DIR + '/data_batch_' + str(i + 1), 'rb')
             datadict = pickle.load(f)
             f.close()
-            
+
             _X = datadict['data']
             _Y = np.array(datadict['labels'])
             _Y = dense_to_one_hot(_Y, num_classes=10)
-            
+
             _X = np.array(_X, dtype=float) / 255.0
             _X = _X.reshape([-1, 3, 32, 32])
             _X = _X.transpose([0, 2, 3, 1])
-            
+
             if x_train is None:
                 x_train = _X
                 y_train = _Y
             else:
-            	x_train = np.concatenate((x_train, _X), axis=0)
-            	y_train = np.concatenate((y_train, _Y), axis=0)
-    
+                x_train = np.concatenate((x_train, _X), axis=0)
+                y_train = np.concatenate((y_train, _Y), axis=0)
+
         # Compute the data mean for normalization
         x_train_mean = np.mean(x_train, axis=0)
         x_validation = x_train[:40000] # We don't use validation set with CIFAR-10
@@ -531,7 +576,7 @@ def _get_cifar(data_dir, is_cifar_100):
         f = open(data_dir + CIFAR_100_DIR + '/test', 'rb')
         datadict = pickle.load(f)
         f.close()
-    
+
         _X = datadict['data']
         _Y = np.array(datadict['fine_labels'])
         _Y = dense_to_one_hot(_Y, num_classes=100)
@@ -648,7 +693,7 @@ def construct_permute_mnist(num_tasks):
         dataset     A permutted mnist dataset
     """
     # Download and store mnist dataset
-    mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+    mnist = read_data_sets('MNIST_data', one_hot=True)
 
     datasets = []
 
@@ -661,7 +706,7 @@ def construct_permute_mnist(num_tasks):
             this_set = getattr(copied_mnist, set_name) # shallow copy
             this_set._images = np.transpose(np.array([this_set.images[:,c] for c in perm_inds]))
             if set_name == "train":
-                train = { 
+                train = {
                     'images':this_set._images,
                     'labels':this_set.labels,
                 }
@@ -697,7 +742,7 @@ def construct_split_mnist(task_labels):
 
     """
     # Download and store mnist dataset
-    mnist = input_data.read_data_sets('MNIST_data', one_hot=True)
+    mnist = read_data_sets('MNIST_data', one_hot=True)
 
     datasets = []
 
